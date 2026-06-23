@@ -1,11 +1,10 @@
-﻿using EPR.ProducerContentValidation.Application.Constants;
+using EPR.ProducerContentValidation.Application.Constants;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
 using EPR.ProducerContentValidation.Application.DTOs.SubmissionApi;
 using EPR.ProducerContentValidation.Application.Exceptions;
 using EPR.ProducerContentValidation.Application.Mapping;
 using EPR.ProducerContentValidation.Application.Options;
 using EPR.ProducerContentValidation.Application.Services.Interfaces;
-using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -33,17 +32,14 @@ public class ValidateProducerContentFunction
         _logger = logger;
     }
 
-    [Function("ValidateProducerContent")]
-    public async Task RunAsync(
-        [ServiceBusTrigger("%ServiceBus:SplitQueueName%", Connection = "ServiceBus:ConnectionString")]
-        ProducerValidationInRequest producerValidationRequest)
+    public async Task RunAsync(ProducerValidationInRequest producerValidationRequest)
     {
         _logger.LogInformation("Entering function");
         _logger.LogWarning("Validation.Disabled: {Disabled}", _validationOptions.Disabled);
 
         try
         {
-            await PerformValidation(producerValidationRequest);
+            await PerformValidationAsync(producerValidationRequest);
         }
         catch (Exception e)
         {
@@ -55,7 +51,9 @@ public class ValidateProducerContentFunction
         }
     }
 
-    private async Task PerformValidation(ProducerValidationInRequest producerValidationRequest)
+    public async Task<SubmissionEventRequest> PerformValidationAsync(
+        ProducerValidationInRequest producerValidationRequest,
+        bool skipApiCall = false)
     {
         var producerValidationResult = new SubmissionEventRequest(
             producerValidationRequest.BlobName,
@@ -68,27 +66,30 @@ public class ValidateProducerContentFunction
         try
         {
             var producer = producerValidationRequest.ToProducer();
-
             producerValidationResult = await _validationService.ValidateAsync(producer);
         }
         catch (Exception exception)
         {
             _logger.LogError(exception, "Uncaught exception");
-
             producerValidationResult.Errors.Add(ErrorCode.UncaughtExceptionErrorCode);
         }
 
-        try
+        if (!skipApiCall)
         {
-            await _submissionApiClient.PostEventAsync(
-                producerValidationRequest.OrganisationId,
-                producerValidationRequest.UserId,
-                producerValidationRequest.SubmissionId,
-                producerValidationResult);
+            try
+            {
+                await _submissionApiClient.PostEventAsync(
+                    producerValidationRequest.OrganisationId,
+                    producerValidationRequest.UserId,
+                    producerValidationRequest.SubmissionId,
+                    producerValidationResult);
+            }
+            catch (SubmissionApiClientException exception)
+            {
+                _logger.LogError(exception, "Error occurred while calling submission API: {message}", exception.Message);
+            }
         }
-        catch (SubmissionApiClientException exception)
-        {
-            _logger.LogError(exception, "Error occurred while calling submission API: {message}", exception.Message);
-        }
+
+        return producerValidationResult;
     }
 }

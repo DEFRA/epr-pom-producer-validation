@@ -2,12 +2,12 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY . .
-WORKDIR "/src"
-RUN dotnet test EprPomProducerValidation.Test
-RUN dotnet publish EprPomProducerValidation -c Release -o /app/publish /p:UseAppHost=false
+WORKDIR "/src/src"
+RUN dotnet test EPR.ProducerContentValidation.Application.UnitTests
+RUN dotnet publish EPR.ProducerContentValidation.FunctionApp -c Release -o /app/publish /p:UseAppHost=false
 
 # Final production image
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 
 # Add curl to template, CDP PLATFORM HEALTHCHECK REQUIREMENT
@@ -18,4 +18,4 @@ RUN apt update && \
 
 COPY --from=build /app/publish .
 EXPOSE 8085
-ENTRYPOINT ["dotnet", "EprPomProducerValidation.dll"]
+ENTRYPOINT ["dotnet", "EPR.ProducerContentValidation.FunctionApp.dll"]
