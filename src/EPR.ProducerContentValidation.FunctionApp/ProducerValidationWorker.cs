@@ -1,21 +1,21 @@
+﻿using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
 using EPR.ProducerContentValidation.Application.Options;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 
 namespace EPR.ProducerContentValidation.FunctionApp;
 
 public class ProducerValidationWorker : BackgroundService
 {
-    private readonly ServiceBusProcessor _processor;
-    private readonly ValidateProducerContentFunction _function;
-    private readonly ILogger<ProducerValidationWorker> _logger;
-
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
+
+    private readonly ServiceBusProcessor _processor;
+    private readonly ValidateProducerContentFunction _function;
+    private readonly ILogger<ProducerValidationWorker> _logger;
 
     public ProducerValidationWorker(
         IOptions<ServiceBusOptions> serviceBusOptions,
@@ -35,7 +35,7 @@ public class ProducerValidationWorker : BackgroundService
     {
         await _processor.StartProcessingAsync(stoppingToken);
         await Task.Delay(Timeout.Infinite, stoppingToken).ContinueWith(_ => { }, TaskScheduler.Default);
-        await _processor.StopProcessingAsync();
+        await _processor.StopProcessingAsync(CancellationToken.None);
     }
 
     private async Task HandleMessageAsync(ProcessMessageEventArgs args)

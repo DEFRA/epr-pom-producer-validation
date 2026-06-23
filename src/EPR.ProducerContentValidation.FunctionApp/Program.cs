@@ -1,4 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using EPR.ProducerContentValidation.Application;
 using EPR.ProducerContentValidation.Application.Clients;
