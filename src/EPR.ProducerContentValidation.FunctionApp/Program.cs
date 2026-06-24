@@ -1,7 +1,6 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using EPR.ProducerContentValidation.Application;
-using Serilog;
 using EPR.ProducerContentValidation.Application.Clients;
 using EPR.ProducerContentValidation.Application.Config;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
@@ -12,6 +11,7 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;
 using Polly;
+using Serilog;
 using Polly.Timeout;
 
 var builder = WebApplication.CreateBuilder(args);
