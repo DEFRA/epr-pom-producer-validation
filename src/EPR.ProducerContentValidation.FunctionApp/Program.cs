@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 using System.Net.Http.Headers;
 using EPR.ProducerContentValidation.Application;
+using Serilog;
 using EPR.ProducerContentValidation.Application.Clients;
 using EPR.ProducerContentValidation.Application.Config;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
@@ -14,6 +15,9 @@ using Polly;
 using Polly.Timeout;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, config) =>
+    config.ReadFrom.Configuration(context.Configuration));
 
 builder.WebHost.UseUrls("http://+:8085");
 
@@ -35,6 +39,8 @@ builder.Services.AddSingleton<ValidateProducerContentFunction>();
 builder.Services.AddHostedService<ProducerValidationWorker>();
 
 var app = builder.Build();
+
+app.UseSerilogRequestLogging();
 
 app.MapHealthChecks("/health", new HealthCheckOptions());
 
