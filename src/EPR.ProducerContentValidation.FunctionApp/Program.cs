@@ -11,8 +11,8 @@ using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
 using Microsoft.FeatureManagement;
 using Polly;
-using Serilog;
 using Polly.Timeout;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
