@@ -48,6 +48,13 @@ public class ProducerValidationWorker : BackgroundService
         _processor.ProcessErrorAsync += HandleErrorAsync;
     }
 
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        await _processor.StartProcessingAsync(stoppingToken);
+        await Task.Delay(Timeout.Infinite, stoppingToken).ContinueWith(_ => { }, TaskScheduler.Default);
+        await _processor.StopProcessingAsync(CancellationToken.None);
+    }
+
     // The CDP proxy requires authentication. WebProxy does not pick up the user:password
     // embedded in the proxy URL automatically, so the credentials must be set explicitly.
     private static WebProxy BuildWebProxy(string proxyAddress)
@@ -64,13 +71,6 @@ public class ProducerValidationWorker : BackgroundService
         }
 
         return webProxy;
-    }
-
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        await _processor.StartProcessingAsync(stoppingToken);
-        await Task.Delay(Timeout.Infinite, stoppingToken).ContinueWith(_ => { }, TaskScheduler.Default);
-        await _processor.StopProcessingAsync(CancellationToken.None);
     }
 
     private async Task HandleMessageAsync(ProcessMessageEventArgs args)
