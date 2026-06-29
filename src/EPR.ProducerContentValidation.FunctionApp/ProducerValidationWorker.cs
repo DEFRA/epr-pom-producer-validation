@@ -36,7 +36,7 @@ public class ProducerValidationWorker : BackgroundService
 
         if (!string.IsNullOrWhiteSpace(proxyAddress))
         {
-            clientOptions.WebProxy = new WebProxy(proxyAddress);
+            clientOptions.WebProxy = BuildWebProxy(proxyAddress);
         }
 
         var client = new ServiceBusClient(serviceBusOptions.Value.ConnectionString, clientOptions);
@@ -76,5 +76,23 @@ public class ProducerValidationWorker : BackgroundService
     {
         _logger.LogError(args.Exception, "Service Bus error on {EntityPath}", args.EntityPath);
         return Task.CompletedTask;
+    }
+
+    // The CDP proxy requires authentication. WebProxy does not pick up the user:password
+    // embedded in the proxy URL automatically, so the credentials must be set explicitly.
+    private static WebProxy BuildWebProxy(string proxyAddress)
+    {
+        var proxyUri = new Uri(proxyAddress);
+        var webProxy = new WebProxy($"{proxyUri.Scheme}://{proxyUri.Host}:{proxyUri.Port}");
+
+        if (!string.IsNullOrEmpty(proxyUri.UserInfo))
+        {
+            var credentials = proxyUri.UserInfo.Split(':', 2);
+            webProxy.Credentials = new NetworkCredential(
+                Uri.UnescapeDataString(credentials[0]),
+                credentials.Length > 1 ? Uri.UnescapeDataString(credentials[1]) : string.Empty);
+        }
+
+        return webProxy;
     }
 }
