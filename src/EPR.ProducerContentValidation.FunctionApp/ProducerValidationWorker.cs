@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net;
+using System.Text.Json;
 using Azure.Messaging.ServiceBus;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
 using EPR.ProducerContentValidation.Application.Options;
@@ -22,7 +23,23 @@ public class ProducerValidationWorker : BackgroundService
         ValidateProducerContentFunction function,
         ILogger<ProducerValidationWorker> logger)
     {
-        var client = new ServiceBusClient(serviceBusOptions.Value.ConnectionString);
+        // CDP only allows outbound traffic via the Squid HTTP proxy, which cannot tunnel
+        // raw AMQP over TCP (port 5671). AMQP over WebSockets runs on port 443 and can be
+        // tunnelled through the proxy via HTTP CONNECT, so the client must be told to use it.
+        var clientOptions = new ServiceBusClientOptions
+        {
+            TransportType = ServiceBusTransportType.AmqpWebSockets
+        };
+
+        var proxyAddress = Environment.GetEnvironmentVariable("CDP_HTTPS_PROXY")
+            ?? Environment.GetEnvironmentVariable("HTTP_PROXY");
+
+        if (!string.IsNullOrWhiteSpace(proxyAddress))
+        {
+            clientOptions.WebProxy = new WebProxy(proxyAddress);
+        }
+
+        var client = new ServiceBusClient(serviceBusOptions.Value.ConnectionString, clientOptions);
         _processor = client.CreateProcessor(serviceBusOptions.Value.SplitQueueName);
         _function = function;
         _logger = logger;
