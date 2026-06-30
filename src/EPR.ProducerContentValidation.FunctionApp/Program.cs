@@ -6,6 +6,7 @@ using EPR.ProducerContentValidation.Application.Config;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
 using EPR.ProducerContentValidation.Application.Handlers;
 using EPR.ProducerContentValidation.FunctionApp;
+using EPR.ProducerContentValidation.FunctionApp.Utils;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Options;
@@ -20,6 +21,9 @@ builder.Host.UseSerilog((context, config) =>
     config.ReadFrom.Configuration(context.Configuration));
 
 builder.WebHost.UseUrls("http://+:8085");
+
+// Trust material must be loaded before anything creates outbound TLS connections (e.g. MongoDB).
+builder.Services.LoadCustomTrustStoreFromEnvironment();
 
 builder.Services.AddFeatureManagement();
 builder.Services.AddApplicationServices();
