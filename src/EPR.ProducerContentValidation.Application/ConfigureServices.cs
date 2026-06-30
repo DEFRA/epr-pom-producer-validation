@@ -9,6 +9,7 @@ using EPR.ProducerContentValidation.Application.Services.Helpers;
 using EPR.ProducerContentValidation.Application.Services.Helpers.Interfaces;
 using EPR.ProducerContentValidation.Application.Services.Interfaces;
 using EPR.ProducerContentValidation.Application.Services.Subsidiary;
+using EPR.ProducerContentValidation.Application.Utils.Mongo;
 using EPR.ProducerContentValidation.Application.Validators;
 using EPR.ProducerContentValidation.Application.Validators.Factories;
 using EPR.ProducerContentValidation.Application.Validators.Factories.Interfaces;
@@ -16,7 +17,6 @@ using EPR.ProducerContentValidation.Application.Validators.Interfaces;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
-using StackExchange.Redis;
 
 namespace EPR.ProducerContentValidation.Application;
 
@@ -31,13 +31,12 @@ public static class ConfigureServices
 
     private static void RegisterServices(this IServiceCollection services)
     {
+        MongoExtensions.Register();
+        MongoConventions.Register();
+
         services
             .AddScoped<ISubmissionApiClient, SubmissionApiClient>()
-            .AddSingleton<IConnectionMultiplexer>(sp =>
-            {
-                var redisOptions = sp.GetRequiredService<IOptions<RedisOptions>>().Value;
-                return ConnectionMultiplexer.Connect(redisOptions.ConnectionString);
-            })
+            .AddSingleton<IMongoDbClientFactory, MongoDbClientFactory>()
             .AddSingleton<IIssueCountService, IssueCountService>()
             .AddSingleton<IRequestValidator, RequestValidator>()
             .AddSingleton<ISubsidiaryMatcher, SubsidiaryMatcher>()
@@ -56,7 +55,7 @@ public static class ConfigureServices
         services.ConfigureSection<ValidationOptions>(ValidationOptions.Section);
         services.ConfigureSection<ServiceBusOptions>(ServiceBusOptions.Section);
         services.ConfigureSection<StorageAccountOptions>(StorageAccountOptions.Section);
-        services.ConfigureSection<RedisOptions>(RedisOptions.Section);
+        services.ConfigureSection<MongoConfig>(MongoConfig.Section);
         services.ConfigureSection<List<SubmissionPeriodOption>>(SubmissionPeriodOption.Section);
         services.ConfigureSection<CompanyDetailsApiConfig>(CompanyDetailsApiConfig.Section);
         services.ConfigureSection<HttpEndpointOptions>(HttpEndpointOptions.Section, validate: false);

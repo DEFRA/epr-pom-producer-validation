@@ -20,8 +20,9 @@
         <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
         <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
         <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" Version="4.0.0" />
+        <PackageReference Include="MongoDB.Driver" Version="3.8.1" />
+        <PackageReference Include="MongoDB.Driver.Authentication.AWS" Version="3.8.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-        <PackageReference Include="StackExchange.Redis" Version="2.8.0" />
     </ItemGroup>
 
 </Project>
