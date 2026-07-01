@@ -45,6 +45,17 @@ public class SubmissionApiClient : ISubmissionApiClient
         try
         {
             var response = await _httpClient.SendAsync(httpRequestMessage);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                _logger.LogError(
+                    "SubmissionApi returned {StatusCode} for submission {SubmissionId}. Response body: {ResponseBody}",
+                    (int)response.StatusCode,
+                    submissionId,
+                    responseBody);
+            }
+
             response.EnsureSuccessStatusCode();
         }
         catch (HttpRequestException exception)
