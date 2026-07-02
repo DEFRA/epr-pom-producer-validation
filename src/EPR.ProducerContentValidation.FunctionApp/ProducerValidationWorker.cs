@@ -1,6 +1,9 @@
-﻿using System.Net;
+using System.Net;
 using System.Text.Json;
+using Azure;
+using Azure.Core.Pipeline;
 using Azure.Messaging.ServiceBus;
+using Azure.Messaging.ServiceBus.Administration;
 using EPR.ProducerContentValidation.Application.DTOs.SplitFunction;
 using EPR.ProducerContentValidation.Application.Options;
 using Microsoft.Extensions.Options;
@@ -14,9 +17,11 @@ public class ProducerValidationWorker : BackgroundService
         PropertyNameCaseInsensitive = true
     };
 
+    private readonly ServiceBusAdministrationClient _adminClient;
     private readonly ServiceBusProcessor _processor;
     private readonly ValidateProducerContentFunction _function;
     private readonly ILogger<ProducerValidationWorker> _logger;
+    private readonly string _queueName;
 
     public ProducerValidationWorker(
         IOptions<ServiceBusOptions> serviceBusOptions,
@@ -26,21 +31,26 @@ public class ProducerValidationWorker : BackgroundService
         // CDP only allows outbound traffic via the Squid HTTP proxy, which cannot tunnel
         // raw AMQP over TCP (port 5671). AMQP over WebSockets runs on port 443 and can be
         // tunnelled through the proxy via HTTP CONNECT, so the client must be told to use it.
+        var proxyAddress = Environment.GetEnvironmentVariable("CDP_HTTPS_PROXY")
+            ?? Environment.GetEnvironmentVariable("HTTP_PROXY");
+        var webProxy = string.IsNullOrWhiteSpace(proxyAddress) ? null : BuildWebProxy(proxyAddress);
+
         var clientOptions = new ServiceBusClientOptions
         {
             TransportType = ServiceBusTransportType.AmqpWebSockets
         };
 
-        var proxyAddress = Environment.GetEnvironmentVariable("CDP_HTTPS_PROXY")
-            ?? Environment.GetEnvironmentVariable("HTTP_PROXY");
-
-        if (!string.IsNullOrWhiteSpace(proxyAddress))
+        if (webProxy is not null)
         {
-            clientOptions.WebProxy = BuildWebProxy(proxyAddress);
+            clientOptions.WebProxy = webProxy;
         }
 
-        var client = new ServiceBusClient(serviceBusOptions.Value.ConnectionString, clientOptions);
-        _processor = client.CreateProcessor(serviceBusOptions.Value.SplitQueueName);
+        var connectionString = serviceBusOptions.Value.ConnectionString;
+        _queueName = serviceBusOptions.Value.SplitQueueName;
+
+        var client = new ServiceBusClient(connectionString, clientOptions);
+        _processor = client.CreateProcessor(_queueName);
+        _adminClient = new ServiceBusAdministrationClient(connectionString, BuildAdminClientOptions(webProxy));
         _function = function;
         _logger = logger;
 
@@ -50,6 +60,8 @@ public class ProducerValidationWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await EnsureQueueExistsAsync(stoppingToken);
+
         await _processor.StartProcessingAsync(stoppingToken);
         await Task.Delay(Timeout.Infinite, stoppingToken).ContinueWith(_ => { }, TaskScheduler.Default);
         await _processor.StopProcessingAsync(CancellationToken.None);
@@ -71,6 +83,43 @@ public class ProducerValidationWorker : BackgroundService
         }
 
         return webProxy;
+    }
+
+    // The administration client talks over HTTPS rather than AMQP, but it still needs to
+    // be routed through the CDP proxy explicitly, using the same credentials as the data-plane client.
+    private static ServiceBusAdministrationClientOptions BuildAdminClientOptions(WebProxy webProxy)
+    {
+        var options = new ServiceBusAdministrationClientOptions();
+
+        if (webProxy is not null)
+        {
+            var httpClientHandler = new HttpClientHandler { Proxy = webProxy, UseProxy = true };
+            options.Transport = new HttpClientTransport(httpClientHandler);
+        }
+
+        return options;
+    }
+
+    // Requires the connection to have "Manage" rights (e.g. the RootManageSharedAccessKey
+    // policy). Mirrors the check-and-create pattern used by the payment facade CDP POC.
+    private async Task EnsureQueueExistsAsync(CancellationToken cancellationToken)
+    {
+        if (await _adminClient.QueueExistsAsync(_queueName, cancellationToken))
+        {
+            _logger.LogInformation("Service Bus queue {QueueName} already exists", _queueName);
+            return;
+        }
+
+        try
+        {
+            await _adminClient.CreateQueueAsync(_queueName, cancellationToken);
+            _logger.LogInformation("Created Service Bus queue {QueueName}", _queueName);
+        }
+        catch (RequestFailedException ex) when (ex.Status == (int)HttpStatusCode.Conflict)
+        {
+            // Another instance created the queue between our existence check and create call.
+            _logger.LogInformation("Service Bus queue {QueueName} was created concurrently by another instance", _queueName);
+        }
     }
 
     private async Task HandleMessageAsync(ProcessMessageEventArgs args)
