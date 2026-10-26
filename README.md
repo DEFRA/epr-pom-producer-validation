@@ -1,5 +1,7 @@
 # EPR Producer Content Validation Function
 
+IMPORTANT: Even though this repository is not currently used, it's a good example of how to set up integrations between CDP and Azure. Please do not delete it. 
+
 ## Overview
 
 This function listens to an Azure ServiceBus Queue, for messages indicating a user has uploaded a POM file via the front end, to blob storage. It retreives the file, and vaidates its contents based on a set validation rules.
